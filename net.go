@@ -52,19 +52,19 @@ type Interface struct {
 
 func (iface *Interface) OnNeighborAdded(nicid tcpip.NICID, entry stack.NeighborEntry) {
 	if entry.Addr == iface.gateway && len(entry.LinkAddr) > 0 {
-		iface.NIC.gateway = entry.LinkAddr
+		iface.NIC.Gateway = entry.LinkAddr
 	}
 }
 
 func (iface *Interface) OnNeighborChanged(nicid tcpip.NICID, entry stack.NeighborEntry) {
 	if entry.Addr == iface.gateway && len(entry.LinkAddr) > 0 {
-		iface.NIC.gateway = entry.LinkAddr
+		iface.NIC.Gateway = entry.LinkAddr
 	}
 }
 
 func (iface *Interface) OnNeighborRemoved(nicid tcpip.NICID, entry stack.NeighborEntry) {
 	if entry.Addr == iface.gateway {
-		iface.NIC.gateway = header.EthernetBroadcastAddress
+		iface.NIC.Gateway = header.EthernetBroadcastAddress
 	}
 }
 
@@ -176,7 +176,7 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 }
 
 // Init initializes an Ethernet interface.
-func Init(ip, mac string, gateway string, nic *enet.ENET) (iface *Interface, err error) {
+func Init(nic *enet.ENET, ip string, mac string, gateway string, id int) (iface *Interface, err error) {
 	address, err := net.ParseMAC(mac)
 
 	if err != nil {
@@ -193,17 +193,13 @@ func Init(ip, mac string, gateway string, nic *enet.ENET) (iface *Interface, err
 		return
 	}
 
-	if nic == nil {
-		return
-	}
-
-	iface.nicid = tcpip.NICID(nic.Index)
+	iface.nicid = tcpip.NICID(id)
 
 	iface.NIC = &NIC{
 		MAC:     address,
 		Link:    iface.Link,
 		Device:  nic,
-		gateway: header.EthernetBroadcastAddress,
+		Gateway: header.EthernetBroadcastAddress,
 	}
 
 	err = iface.NIC.Init()

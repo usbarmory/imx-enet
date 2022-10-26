@@ -32,7 +32,8 @@ type NIC struct {
 	// Device is the physical interface associated to the virtual one.
 	Device *enet.ENET
 
-	gateway tcpip.LinkAddress
+	// Gateway is router physical address
+	Gateway tcpip.LinkAddress
 }
 
 type notification struct {
@@ -55,7 +56,7 @@ func (eth *NIC) Init() (err error) {
 	}
 
 	if eth.Device == nil {
-		return errors.New("invalid device")
+		return
 	}
 
 	eth.Device.MAC = eth.MAC
@@ -99,7 +100,7 @@ func (eth *NIC) Tx() (buf []byte) {
 	binary.BigEndian.PutUint16(proto, uint16(pkt.NetworkProtocolNumber))
 
 	// Ethernet frame header
-	buf = append(buf, []byte(eth.gateway)...)
+	buf = append(buf, []byte(eth.Gateway)...)
 	buf = append(buf, eth.MAC...)
 	buf = append(buf, proto...)
 
