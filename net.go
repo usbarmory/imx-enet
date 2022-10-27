@@ -36,7 +36,7 @@ import (
 )
 
 // MTU represents the Ethernet Maximum Transmission Unit.
-var MTU uint32 = 1500
+var MTU uint32 = enet.MTU
 
 // Interface represents an Ethernet interface instance.
 type Interface struct {
