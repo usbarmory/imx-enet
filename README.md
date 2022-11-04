@@ -6,8 +6,9 @@ i.MX SoCs, to be used with `GOOS=tamago GOARCH=arm` as supported by the
 [TamaGo](https://github.com/usbarmory/tamago) framework for bare metal Go on
 ARM SoCs.
 
-The package supports TCP/IP networking through gVisor [tcpip](https://pkg.go.dev/gvisor.dev/gvisor/pkg/tcpip)
-package (`go` branch) stack pure Go implementation.
+The package supports TCP/IP networking through gVisor (`go` branch)
+[tcpip](https://pkg.go.dev/gvisor.dev/gvisor/pkg/tcpip)
+stack pure Go implementation.
 
 Authors
 =======
