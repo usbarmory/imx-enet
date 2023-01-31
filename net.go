@@ -40,7 +40,7 @@ var MTU uint32 = enet.MTU
 
 // Interface represents an Ethernet interface instance.
 type Interface struct {
-	address tcpip.Address
+	address tcpip.AddressWithPrefix
 	gateway tcpip.Address
 
 	nicid tcpip.NICID
@@ -95,7 +95,7 @@ func (iface *Interface) configure(mac string) (err error) {
 
 	protocolAddr := tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: iface.address.WithPrefix(),
+		AddressWithPrefix: iface.address,
 	}
 
 	if err := iface.Stack.AddProtocolAddress(iface.nicid, protocolAddr, stack.AddressProperties{}); err != nil {
@@ -126,7 +126,7 @@ func (iface *Interface) EnableICMP() error {
 		return fmt.Errorf("endpoint error (icmp): %v", err)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: iface.address, Port: 0, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: iface.address.Address, Port: 0, NIC: iface.nicid}
 
 	if err := ep.Bind(fullAddr); err != nil {
 		return fmt.Errorf("bind error (icmp endpoint): ", err)
@@ -138,7 +138,7 @@ func (iface *Interface) EnableICMP() error {
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
 // connections for the argument port on the Ethernet interface.
 func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
-	fullAddr := tcpip.FullAddress{Addr: iface.address, Port: port, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: iface.address.Address, Port: port, NIC: iface.nicid}
 
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
@@ -176,7 +176,7 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 }
 
 // Init initializes an Ethernet interface.
-func Init(nic *enet.ENET, ip string, mac string, gateway string, id int) (iface *Interface, err error) {
+func Init(nic *enet.ENET, ip string, prefixLen int, mac string, gateway string, id int) (iface *Interface, err error) {
 	address, err := net.ParseMAC(mac)
 
 	if err != nil {
@@ -185,7 +185,7 @@ func Init(nic *enet.ENET, ip string, mac string, gateway string, id int) (iface 
 
 	iface = &Interface{
 		nicid:   tcpip.NICID(1),
-		address: tcpip.Address(net.ParseIP(ip)).To4(),
+		address: tcpip.AddressWithPrefix{Address: tcpip.Address(net.ParseIP(ip).To4()), PrefixLen: prefixLen},
 		gateway: tcpip.Address(net.ParseIP(gateway)).To4(),
 	}
 
