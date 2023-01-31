@@ -41,6 +41,7 @@ var MTU uint32 = enet.MTU
 // Interface represents an Ethernet interface instance.
 type Interface struct {
 	address tcpip.Address
+	netmask tcpip.AddressMask
 	gateway tcpip.Address
 
 	nicid tcpip.NICID
@@ -96,6 +97,10 @@ func (iface *Interface) configure(mac string) (err error) {
 	protocolAddr := tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
 		AddressWithPrefix: iface.address.WithPrefix(),
+	}
+
+	if len(iface.netmask) > 0 {
+		protocolAddr.AddressWithPrefix.PrefixLen = iface.netmask.Prefix()
 	}
 
 	if err := iface.Stack.AddProtocolAddress(iface.nicid, protocolAddr, stack.AddressProperties{}); err != nil {
@@ -181,7 +186,7 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 }
 
 // Init initializes an Ethernet interface.
-func Init(nic *enet.ENET, ip string, mac string, gateway string, id int) (iface *Interface, err error) {
+func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string, id int) (iface *Interface, err error) {
 	address, err := net.ParseMAC(mac)
 
 	if err != nil {
@@ -191,6 +196,7 @@ func Init(nic *enet.ENET, ip string, mac string, gateway string, id int) (iface 
 	iface = &Interface{
 		nicid:   tcpip.NICID(1),
 		address: tcpip.Address(net.ParseIP(ip)).To4(),
+		netmask: tcpip.AddressMask(net.ParseIP(netmask).To4()),
 		gateway: tcpip.Address(net.ParseIP(gateway)).To4(),
 	}
 
