@@ -105,6 +105,11 @@ func (iface *Interface) configure(mac string) (err error) {
 	rt := iface.Stack.GetRouteTable()
 
 	rt = append(rt, tcpip.Route{
+		Destination: protocolAddr.AddressWithPrefix.Subnet(),
+		NIC:         iface.nicid,
+	})
+
+	rt = append(rt, tcpip.Route{
 		Destination: header.IPv4EmptySubnet,
 		Gateway:     iface.gateway,
 		NIC:         iface.nicid,
