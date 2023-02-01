@@ -100,7 +100,7 @@ func (eth *NIC) Tx() (buf []byte) {
 	binary.BigEndian.PutUint16(proto, uint16(pkt.NetworkProtocolNumber))
 
 	// Ethernet frame header
-	buf = append(buf, []byte(eth.Gateway)...)
+	buf = append(buf, pkt.EgressRoute.RemoteLinkAddress...)
 	buf = append(buf, eth.MAC...)
 	buf = append(buf, proto...)
 
