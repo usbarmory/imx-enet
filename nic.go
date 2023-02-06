@@ -72,6 +72,10 @@ func (eth *NIC) Init() (err error) {
 
 // Rx receives a single Ethernet frame from the virtual Ethernet instance.
 func (eth *NIC) Rx(buf []byte) {
+	if len(buf) < 14 {
+		return
+	}
+
 	hdr := buf[0:14]
 	proto := tcpip.NetworkProtocolNumber(binary.BigEndian.Uint16(buf[12:14]))
 	payload := buf[14:]
