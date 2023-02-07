@@ -55,13 +55,8 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 			arp.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{
 			tcp.NewProtocol,
-<<<<<<< HEAD
 			icmp.NewProtocol4,
 			udp.NewProtocol},
-		NUDDisp: iface,
-=======
-			icmp.NewProtocol4},
->>>>>>> dbd9c31 (Remove shadowed stack config)
 	})
 
 	linkAddr, err := tcpip.ParseMACAddress(mac)
@@ -117,6 +112,7 @@ func (iface *Interface) EnableICMP() error {
 	}
 
 	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+
 	if tcpErr != nil {
 		return fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
@@ -134,6 +130,7 @@ func (iface *Interface) EnableICMP() error {
 // connections for the argument port on the Ethernet interface.
 func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
 	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+
 	if tcpErr != nil {
 		return nil, fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
@@ -186,7 +183,10 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	iface = &Interface{
 		nicid: tcpip.NICID(id),
 	}
-	ipAddr := tcpip.AddressWithPrefix{Address: tcpip.Address(net.ParseIP(ip).To4()), PrefixLen: tcpip.AddressMask(net.ParseIP(netmask).To4()).Prefix()}
+	ipAddr := tcpip.AddressWithPrefix{
+		Address:   tcpip.Address(net.ParseIP(ip).To4()),
+		PrefixLen: tcpip.AddressMask(net.ParseIP(netmask).To4()).Prefix(),
+	}
 	gwAddr := tcpip.Address(net.ParseIP(gateway)).To4()
 
 	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
