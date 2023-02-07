@@ -32,6 +32,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
@@ -76,7 +77,8 @@ func (iface *Interface) configure(mac string) (err error) {
 			arp.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{
 			tcp.NewProtocol,
-			icmp.NewProtocol4},
+			icmp.NewProtocol4,
+			udp.NewProtocol},
 		NUDDisp: iface,
 	})
 
@@ -147,16 +149,16 @@ func (iface *Interface) EnableICMP() error {
 
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
 // connections for the argument port on the Ethernet interface.
-func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
+func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, func() error, error) {
 	fullAddr := tcpip.FullAddress{Addr: iface.address, Port: port, NIC: iface.nicid}
 
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return (net.Listener)(listener), nil
+	return (net.Listener)(listener), listener.Close, nil
 }
 
 // Dial connects to an IPv4 TCP address, over the Ethernet interface.
