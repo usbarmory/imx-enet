@@ -194,10 +194,9 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	}
 
 	iface.NIC = &NIC{
-		MAC:     address,
-		Link:    iface.Link,
-		Device:  nic,
-		Gateway: header.EthernetBroadcastAddress,
+		MAC:    address,
+		Link:   iface.Link,
+		Device: nic,
 	}
 
 	err = iface.NIC.Init()
