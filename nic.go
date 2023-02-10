@@ -31,9 +31,6 @@ type NIC struct {
 
 	// Device is the physical interface associated to the virtual one.
 	Device *enet.ENET
-
-	// Gateway is router physical address
-	Gateway tcpip.LinkAddress
 }
 
 type notification struct {

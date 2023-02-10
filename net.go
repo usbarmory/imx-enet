@@ -41,10 +41,6 @@ var MTU uint32 = enet.MTU
 
 // Interface represents an Ethernet interface instance.
 type Interface struct {
-	address tcpip.Address
-	netmask tcpip.AddressMask
-	gateway tcpip.Address
-
 	nicid tcpip.NICID
 	NIC   *NIC
 
@@ -52,25 +48,7 @@ type Interface struct {
 	Link  *channel.Endpoint
 }
 
-func (iface *Interface) OnNeighborAdded(nicid tcpip.NICID, entry stack.NeighborEntry) {
-	if entry.Addr == iface.gateway && len(entry.LinkAddr) > 0 {
-		iface.NIC.Gateway = entry.LinkAddr
-	}
-}
-
-func (iface *Interface) OnNeighborChanged(nicid tcpip.NICID, entry stack.NeighborEntry) {
-	if entry.Addr == iface.gateway && len(entry.LinkAddr) > 0 {
-		iface.NIC.Gateway = entry.LinkAddr
-	}
-}
-
-func (iface *Interface) OnNeighborRemoved(nicid tcpip.NICID, entry stack.NeighborEntry) {
-	if entry.Addr == iface.gateway {
-		iface.NIC.Gateway = header.EthernetBroadcastAddress
-	}
-}
-
-func (iface *Interface) configure(mac string) (err error) {
+func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address) (err error) {
 	iface.Stack = stack.New(stack.Options{
 		NetworkProtocols: []stack.NetworkProtocolFactory{
 			ipv4.NewProtocol,
@@ -79,7 +57,6 @@ func (iface *Interface) configure(mac string) (err error) {
 			tcp.NewProtocol,
 			icmp.NewProtocol4,
 			udp.NewProtocol},
-		NUDDisp: iface,
 	})
 
 	linkAddr, err := tcpip.ParseMACAddress(mac)
@@ -98,11 +75,7 @@ func (iface *Interface) configure(mac string) (err error) {
 
 	protocolAddr := tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: iface.address.WithPrefix(),
-	}
-
-	if len(iface.netmask) > 0 {
-		protocolAddr.AddressWithPrefix.PrefixLen = iface.netmask.Prefix()
+		AddressWithPrefix: ip,
 	}
 
 	if err := iface.Stack.AddProtocolAddress(iface.nicid, protocolAddr, stack.AddressProperties{}); err != nil {
@@ -118,7 +91,7 @@ func (iface *Interface) configure(mac string) (err error) {
 
 	rt = append(rt, tcpip.Route{
 		Destination: header.IPv4EmptySubnet,
-		Gateway:     iface.gateway,
+		Gateway:     gw,
 		NIC:         iface.nicid,
 	})
 
@@ -138,7 +111,13 @@ func (iface *Interface) EnableICMP() error {
 		return fmt.Errorf("endpoint error (icmp): %v", err)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: iface.address, Port: 0, NIC: iface.nicid}
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+
+	if tcpErr != nil {
+		return fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
+	}
+
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: 0, NIC: iface.nicid}
 
 	if err := ep.Bind(fullAddr); err != nil {
 		return fmt.Errorf("bind error (icmp endpoint): ", err)
@@ -149,16 +128,22 @@ func (iface *Interface) EnableICMP() error {
 
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
 // connections for the argument port on the Ethernet interface.
-func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, func() error, error) {
-	fullAddr := tcpip.FullAddress{Addr: iface.address, Port: port, NIC: iface.nicid}
+func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+
+	if tcpErr != nil {
+		return nil, fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
+	}
+
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.nicid}
 
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return (net.Listener)(listener), listener.Close, nil
+	return (net.Listener)(listener), nil
 }
 
 // Dial connects to an IPv4 TCP address, over the Ethernet interface.
@@ -196,23 +181,22 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	}
 
 	iface = &Interface{
-		nicid:   tcpip.NICID(1),
-		address: tcpip.Address(net.ParseIP(ip)).To4(),
-		netmask: tcpip.AddressMask(net.ParseIP(netmask).To4()),
-		gateway: tcpip.Address(net.ParseIP(gateway)).To4(),
+		nicid: tcpip.NICID(id),
 	}
+	ipAddr := tcpip.AddressWithPrefix{
+		Address:   tcpip.Address(net.ParseIP(ip).To4()),
+		PrefixLen: tcpip.AddressMask(net.ParseIP(netmask).To4()).Prefix(),
+	}
+	gwAddr := tcpip.Address(net.ParseIP(gateway)).To4()
 
-	if err = iface.configure(mac); err != nil {
+	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
 		return
 	}
 
-	iface.nicid = tcpip.NICID(id)
-
 	iface.NIC = &NIC{
-		MAC:     address,
-		Link:    iface.Link,
-		Device:  nic,
-		Gateway: header.EthernetBroadcastAddress,
+		MAC:    address,
+		Link:   iface.Link,
+		Device: nic,
 	}
 
 	err = iface.NIC.Init()
