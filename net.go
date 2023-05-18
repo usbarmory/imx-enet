@@ -17,6 +17,7 @@
 package enet
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -146,8 +147,13 @@ func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
 	return (net.Listener)(listener), nil
 }
 
-// Dial connects to an IPv4 TCP address, over the Ethernet interface.
 func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
+	return iface.DialContextTCP4(context.Background(), address)
+}
+
+// Dial connects to an IPv4 TCP address, over the Ethernet interface, with support for timeout
+// supplied by ctx.
+func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 
 	if err != nil {
@@ -163,7 +169,7 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 	addr := net.ParseIP(host)
 	fullAddr := tcpip.FullAddress{Addr: tcpip.Address(addr.To4()), Port: uint16(p)}
 
-	conn, err := gonet.DialTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
+	conn, err := gonet.DialContextTCP(ctx, iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
 		return nil, err
