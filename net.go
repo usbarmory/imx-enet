@@ -154,20 +154,10 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 // Dial connects to an IPv4 TCP address, over the Ethernet interface, with support for timeout
 // supplied by ctx.
 func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
-
+	fullAddr, err := fullAddr(address)
 	if err != nil {
 		return nil, err
 	}
-
-	p, err := strconv.Atoi(port)
-
-	if err != nil {
-		return nil, err
-	}
-
-	addr := net.ParseIP(host)
-	fullAddr := tcpip.FullAddress{Addr: tcpip.Address(addr.To4()), Port: uint16(p)}
 
 	conn, err := gonet.DialContextTCP(ctx, iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
@@ -176,6 +166,32 @@ func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (ne
 	}
 
 	return (net.Conn)(conn), nil
+}
+
+	conn, err := gonet.DialContextTCP(ctx, iface.Stack, fullAddr, ipv4.ProtocolNumber)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return (net.Conn)(conn), nil
+}
+
+func fullAddr(a string) (tcpip.FullAddress, error) {
+	host, port, err := net.SplitHostPort(a)
+
+	if err != nil {
+		return tcpip.FullAddress{}, err
+	}
+
+	p, err := strconv.Atoi(port)
+
+	if err != nil {
+		return tcpip.FullAddress{}, err
+	}
+
+	addr := net.ParseIP(host)
+	return tcpip.FullAddress{Addr: tcpip.Address(addr.To4()), Port: uint16(p)}, nil
 }
 
 // Init initializes an Ethernet interface.
