@@ -168,7 +168,24 @@ func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (ne
 	return (net.Conn)(conn), nil
 }
 
-	conn, err := gonet.DialContextTCP(ctx, iface.Stack, fullAddr, ipv4.ProtocolNumber)
+// DialUDP4 creates a UDP connection to the ip:port specified by rAddr, optionally setting
+// the local ip:port to lAddr.
+func (iface *Interface) DialUDP4(lAddr, rAddr string) (net.Conn, error) {
+	rFullAddr, err := fullAddr(rAddr)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse rAddr %q: %v", rAddr, err)
+	}
+
+	var lFullAddr tcpip.FullAddress
+	if lAddr != "" {
+		lFullAddr, err = fullAddr(lAddr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse lAddr %q: %v", lAddr, err)
+		}
+	}
+
+	conn, err := gonet.DialUDP(iface.Stack, &lFullAddr, &rFullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
 		return nil, err
@@ -177,6 +194,7 @@ func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (ne
 	return (net.Conn)(conn), nil
 }
 
+// fullAddr attempts to convert the ip:port to a FullAddress struct.
 func fullAddr(a string) (tcpip.FullAddress, error) {
 	host, port, err := net.SplitHostPort(a)
 
