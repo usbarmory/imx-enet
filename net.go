@@ -137,7 +137,6 @@ func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
 	}
 
 	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.nicid}
-
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
@@ -155,6 +154,7 @@ func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 // supplied by ctx.
 func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (net.Conn, error) {
 	fullAddr, err := fullAddr(address)
+
 	if err != nil {
 		return nil, err
 	}
@@ -178,9 +178,9 @@ func (iface *Interface) DialUDP4(lAddr, rAddr string) (net.Conn, error) {
 	}
 
 	var lFullAddr tcpip.FullAddress
+
 	if lAddr != "" {
-		lFullAddr, err = fullAddr(lAddr)
-		if err != nil {
+		if lFullAddr, err = fullAddr(lAddr); err != nil {
 			return nil, fmt.Errorf("failed to parse lAddr %q: %v", lAddr, err)
 		}
 	}
@@ -223,10 +223,12 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	iface = &Interface{
 		nicid: tcpip.NICID(id),
 	}
+
 	ipAddr := tcpip.AddressWithPrefix{
 		Address:   tcpip.Address(net.ParseIP(ip).To4()),
 		PrefixLen: tcpip.AddressMask(net.ParseIP(netmask).To4()).Prefix(),
 	}
+
 	gwAddr := tcpip.Address(net.ParseIP(gateway)).To4()
 
 	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
