@@ -209,7 +209,7 @@ func fullAddr(a string) (tcpip.FullAddress, error) {
 	}
 
 	addr := net.ParseIP(host)
-	return tcpip.FullAddress{Addr: tcpip.Address(addr.To4()), Port: uint16(p)}, nil
+	return tcpip.FullAddress{Addr: tcpip.AddrFromSlice(addr.To4()), Port: uint16(p)}, nil
 }
 
 // Init initializes an Ethernet interface.
@@ -225,11 +225,11 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	}
 
 	ipAddr := tcpip.AddressWithPrefix{
-		Address:   tcpip.Address(net.ParseIP(ip).To4()),
-		PrefixLen: tcpip.AddressMask(net.ParseIP(netmask).To4()).Prefix(),
+		Address:   tcpip.AddrFromSlice(net.ParseIP(ip).To4()),
+		PrefixLen: tcpip.MaskFromBytes(net.ParseIP(netmask).To4()).Prefix(),
 	}
 
-	gwAddr := tcpip.Address(net.ParseIP(gateway)).To4()
+	gwAddr := tcpip.AddrFromSlice(net.ParseIP(gateway)).To4()
 
 	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
 		return
