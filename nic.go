@@ -15,7 +15,7 @@ import (
 
 	"github.com/usbarmory/tamago/soc/nxp/enet"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -79,7 +79,7 @@ func (eth *NIC) Rx(buf []byte) {
 
 	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 		ReserveHeaderBytes: len(hdr),
-		Payload:            bufferv2.MakeWithData(payload),
+		Payload:            buffer.MakeWithData(payload),
 	})
 
 	copy(pkt.LinkHeader().Push(len(hdr)), hdr)
