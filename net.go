@@ -129,7 +129,7 @@ func (iface *Interface) EnableICMP() error {
 }
 
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
-// connections for the argument port on the Ethernet interface.
+// connections for the argument port.
 func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
 	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
 
@@ -147,11 +147,12 @@ func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
 	return (net.Listener)(listener), nil
 }
 
+// DialTCP4 connects to an IPv4 TCP address.
 func (iface *Interface) DialTCP4(address string) (net.Conn, error) {
 	return iface.DialContextTCP4(context.Background(), address)
 }
 
-// Dial connects to an IPv4 TCP address, over the Ethernet interface, with support for timeout
+// DialContextTCP4 connects to an IPv4 TCP address with support for timeout
 // supplied by ctx.
 func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (net.Conn, error) {
 	fullAddr, err := fullAddr(address)
