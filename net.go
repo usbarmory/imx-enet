@@ -97,7 +97,6 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 	})
 
 	iface.Stack.SetRouteTable(rt)
-	net.SocketFunc = iface.Socket
 
 	return
 }

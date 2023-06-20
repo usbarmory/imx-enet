@@ -19,6 +19,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
 
+// Socket can be used as net.SocketFunc under GOOS=tamago to allow its use
+// internal use within the Go runtime.
 func (iface *Interface) Socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (c net.Conn, l net.Listener, err error) {
 	var proto tcpip.NetworkProtocolNumber
 	var lFullAddr tcpip.FullAddress
