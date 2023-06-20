@@ -10,6 +10,17 @@ The package supports TCP/IP networking through gVisor (`go` branch)
 [tcpip](https://pkg.go.dev/gvisor.dev/gvisor/pkg/tcpip)
 stack pure Go implementation.
 
+The interface TCP/IP stack can be attached to the Go runtime by setting
+`net.SocketFunc` to the interface `Socket` function:
+
+```
+iface, _ := imxenet.Init(usbarmory.ENET2, "10.0.0.1", "255.255.255.0", "1a:55:89:a2:69:41", "10.0.0.2", 1)
+net.SocketFunc = iface.Socket
+```
+
+See [tamago-example](https://github.com/usbarmory/tamago-example/blob/master/network/imx-enet.go)
+for a full integration example.
+
 Authors
 =======
 
