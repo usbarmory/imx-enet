@@ -97,7 +97,7 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 	})
 
 	iface.Stack.SetRouteTable(rt)
-	iface.hookGoNet()
+	net.SocketFunc = iface.Socket
 
 	return
 }
@@ -173,19 +173,19 @@ func (iface *Interface) DialContextTCP4(ctx context.Context, address string) (ne
 // DialUDP4 creates a UDP connection to the ip:port specified by rAddr, optionally setting
 // the local ip:port to lAddr.
 func (iface *Interface) DialUDP4(lAddr, rAddr string) (net.Conn, error) {
-	var rFullAddr tcpip.FullAddress
 	var lFullAddr tcpip.FullAddress
+	var rFullAddr tcpip.FullAddress
 	var err error
-
-	if rAddr != "" {
-		if rFullAddr, err = fullAddr(rAddr); err != nil {
-			return nil, fmt.Errorf("failed to parse rAddr %q: %v", rAddr, err)
-		}
-	}
 
 	if lAddr != "" {
 		if lFullAddr, err = fullAddr(lAddr); err != nil {
 			return nil, fmt.Errorf("failed to parse lAddr %q: %v", lAddr, err)
+		}
+	}
+
+	if rAddr != "" {
+		if rFullAddr, err = fullAddr(rAddr); err != nil {
+			return nil, fmt.Errorf("failed to parse rAddr %q: %v", rAddr, err)
 		}
 	}
 

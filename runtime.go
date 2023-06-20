@@ -10,48 +10,77 @@ package enet
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
+	"syscall"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 )
 
-func (iface *Interface) hookGoNet() {
-	net.DialFunc = func(ctx context.Context, network string, la net.Addr, ra net.Addr) (net.Conn, error) {
-		switch network {
-		case "tcp", "tcp4":
-			return iface.DialContextTCP4(ctx, ra.String())
-		case "udp", "udp4":
-			return iface.DialUDP4("", ra.String())
-		default:
-			return nil, fmt.Errorf("unsupported network %s", network)
+func (iface *Interface) Socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (c net.Conn, l net.Listener, err error) {
+	var proto tcpip.NetworkProtocolNumber
+	var lFullAddr tcpip.FullAddress
+	var rFullAddr tcpip.FullAddress
+
+	if laddr != nil && laddr.String() != "<nil>" {
+		if lFullAddr, err = fullAddr(laddr.String()); err != nil {
+			return
 		}
 	}
 
-	net.ListenFunc = func(ctx context.Context, network string, la net.Addr) (net.Listener, error) {
-		switch network {
-		case "tcp", "tcp4":
-		default:
-			return nil, fmt.Errorf("unsupported network %s", network)
+	if raddr != nil && raddr.String() != "<nil>" {
+		if rFullAddr, err = fullAddr(raddr.String()); err != nil {
+			return
 		}
-
-		addr := la.(*net.TCPAddr)
-
-		return iface.ListenerTCP4(uint16(addr.Port))
 	}
 
-	net.ListenPacketFunc = func(ctx context.Context, network string, la net.Addr) (net.PacketConn, error) {
-		switch network {
-		case "udp", "udp4":
-		default:
-			return nil, fmt.Errorf("unsupported network %s", network)
+	switch family {
+	case syscall.AF_INET:
+		proto = ipv4.ProtocolNumber
+	default:
+		return nil, nil, errors.New("unsupported address family")
+	}
+
+	switch network {
+	case "udp":
+		if sotype != syscall.SOCK_DGRAM {
+			return nil, nil, errors.New("unsupported socket type")
 		}
 
-		addr := la.(*net.UDPAddr)
+		conn, err := gonet.DialUDP(iface.Stack, &lFullAddr, &rFullAddr, proto)
 
-		lAddr := tcpip.FullAddress{Addr: tcpip.AddrFromSlice(addr.IP), Port: uint16(addr.Port)}
-		return gonet.DialUDP(iface.Stack, &lAddr, &tcpip.FullAddress{}, ipv4.ProtocolNumber)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		c = (net.Conn)(conn)
+	case "tcp":
+		if sotype != syscall.SOCK_STREAM {
+			return nil, nil, errors.New("unsupported socket type")
+		}
+
+		if raddr != nil {
+			conn, err := gonet.DialContextTCP(ctx, iface.Stack, rFullAddr, proto)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			c = (net.Conn)(conn)
+		} else {
+			listener, err := gonet.ListenTCP(iface.Stack, lFullAddr, ipv4.ProtocolNumber)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			l = (net.Listener)(listener)
+		}
+	default:
+		err = errors.New("unsupported network")
 	}
+
+	return
 }
