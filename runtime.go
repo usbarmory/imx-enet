@@ -21,7 +21,7 @@ import (
 
 // Socket can be used as net.SocketFunc under GOOS=tamago to allow its use
 // internal use within the Go runtime.
-func (iface *Interface) Socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (c net.Conn, l net.Listener, err error) {
+func (iface *Interface) Socket(ctx context.Context, network string, family, sotype int, laddr, raddr net.Addr) (c interface{}, err error) {
 	var proto tcpip.NetworkProtocolNumber
 	var lFullAddr tcpip.FullAddress
 	var rFullAddr tcpip.FullAddress
@@ -42,46 +42,34 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 	case syscall.AF_INET:
 		proto = ipv4.ProtocolNumber
 	default:
-		return nil, nil, errors.New("unsupported address family")
+		return nil, errors.New("unsupported address family")
 	}
 
 	switch network {
 	case "udp", "udp4":
 		if sotype != syscall.SOCK_DGRAM {
-			return nil, nil, errors.New("unsupported socket type")
+			return nil, errors.New("unsupported socket type")
 		}
 
-		conn, err := gonet.DialUDP(iface.Stack, &lFullAddr, &rFullAddr, proto)
-
-		if err != nil {
-			return nil, nil, err
+		if c, err = gonet.DialUDP(iface.Stack, &lFullAddr, &rFullAddr, proto); c != nil {
+			return
 		}
-
-		c = (net.Conn)(conn)
 	case "tcp", "tcp4":
 		if sotype != syscall.SOCK_STREAM {
-			return nil, nil, errors.New("unsupported socket type")
+			return nil, errors.New("unsupported socket type")
 		}
 
 		if raddr != nil {
-			conn, err := gonet.DialContextTCP(ctx, iface.Stack, rFullAddr, proto)
-
-			if err != nil {
-				return nil, nil, err
+			if c, err = gonet.DialContextTCP(ctx, iface.Stack, rFullAddr, proto); err != nil {
+				return
 			}
-
-			c = (net.Conn)(conn)
 		} else {
-			listener, err := gonet.ListenTCP(iface.Stack, lFullAddr, ipv4.ProtocolNumber)
-
-			if err != nil {
-				return nil, nil, err
+			if c, err = gonet.ListenTCP(iface.Stack, lFullAddr, ipv4.ProtocolNumber); err != nil {
+				return
 			}
-
-			l = (net.Listener)(listener)
 		}
 	default:
-		err = errors.New("unsupported network")
+		return nil, errors.New("unsupported network")
 	}
 
 	return
