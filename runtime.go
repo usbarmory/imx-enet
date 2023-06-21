@@ -46,7 +46,7 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 	}
 
 	switch network {
-	case "udp":
+	case "udp", "udp4":
 		if sotype != syscall.SOCK_DGRAM {
 			return nil, nil, errors.New("unsupported socket type")
 		}
@@ -58,7 +58,7 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 		}
 
 		c = (net.Conn)(conn)
-	case "tcp":
+	case "tcp", "tcp4":
 		if sotype != syscall.SOCK_STREAM {
 			return nil, nil, errors.New("unsupported socket type")
 		}
