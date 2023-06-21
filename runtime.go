@@ -64,7 +64,7 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 				return
 			}
 		} else {
-			if c, err = gonet.ListenTCP(iface.Stack, lFullAddr, ipv4.ProtocolNumber); err != nil {
+			if c, err = gonet.ListenTCP(iface.Stack, lFullAddr, proto); err != nil {
 				return
 			}
 		}
