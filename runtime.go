@@ -26,13 +26,13 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 	var lFullAddr tcpip.FullAddress
 	var rFullAddr tcpip.FullAddress
 
-	if laddr != nil && laddr.String() != "<nil>" {
+	if laddr != nil {
 		if lFullAddr, err = fullAddr(laddr.String()); err != nil {
 			return
 		}
 	}
 
-	if raddr != nil && raddr.String() != "<nil>" {
+	if raddr != nil {
 		if rFullAddr, err = fullAddr(raddr.String()); err != nil {
 			return
 		}
