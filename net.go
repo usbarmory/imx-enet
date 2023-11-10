@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"syscall"
 
 	"github.com/usbarmory/tamago/soc/nxp/enet"
 
@@ -30,6 +31,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/network/arp"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
@@ -47,26 +49,27 @@ type Interface struct {
 
 	Stack *stack.Stack
 	Link  *channel.Endpoint
+
+	protos map[int]tcpip.NetworkProtocolNumber
 }
 
-func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address) (err error) {
-	iface.Stack = stack.New(stack.Options{
-		NetworkProtocols: []stack.NetworkProtocolFactory{
-			ipv4.NewProtocol,
-			arp.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{
-			tcp.NewProtocol,
-			icmp.NewProtocol4,
-			udp.NewProtocol},
-	})
+var DefaultStackOptions = &stack.Options{
+	NetworkProtocols: []stack.NetworkProtocolFactory{
+		arp.NewProtocol,
+		ipv4.NewProtocol,
+	}, TransportProtocols: []stack.TransportProtocolFactory{
+		tcp.NewProtocol,
+		icmp.NewProtocol4,
+		udp.NewProtocol},
+}
 
-	linkAddr, err := tcpip.ParseMACAddress(mac)
+func (iface *Interface) configure(opts Options) (err error) {
+	iface.Stack = stack.New(*opts.StackOptions)
+	/*
 
-	if err != nil {
-		return
-	}
-
-	iface.Link = channel.New(256, MTU, linkAddr)
+		})
+	*/
+	iface.Link = channel.New(256, MTU, opts.MAC)
 	linkEP := stack.LinkEndpoint(iface.Link)
 	iface.Link.LinkEPCapabilities |= stack.CapabilityResolutionRequired
 
@@ -74,31 +77,56 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 		return fmt.Errorf("%v", err)
 	}
 
-	protocolAddr := tcpip.ProtocolAddress{
-		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: ip,
-	}
-
-	if err := iface.Stack.AddProtocolAddress(iface.NICID, protocolAddr, stack.AddressProperties{}); err != nil {
-		return fmt.Errorf("%v", err)
-	}
-
 	rt := iface.Stack.GetRouteTable()
-
-	rt = append(rt, tcpip.Route{
-		Destination: protocolAddr.AddressWithPrefix.Subnet(),
-		NIC:         iface.NICID,
-	})
-
-	rt = append(rt, tcpip.Route{
-		Destination: header.IPv4EmptySubnet,
-		Gateway:     gw,
-		NIC:         iface.NICID,
-	})
-
+	if c := opts.IPv4; c != nil {
+		r, err := iface.configureProtocol(ipv4.ProtocolNumber, c)
+		if err != nil {
+			return fmt.Errorf("failed to configure IPv4: %v", err)
+		}
+		rt = append(rt, r...)
+		iface.protos[syscall.AF_INET] = ipv4.ProtocolNumber
+	}
+	if c := opts.IPv6; c != nil {
+		r, err := iface.configureProtocol(ipv6.ProtocolNumber, c)
+		if err != nil {
+			return fmt.Errorf("failed to configure IPv6: %v", err)
+		}
+		rt = append(rt, r...)
+		iface.protos[syscall.AF_INET6] = ipv6.ProtocolNumber
+	}
 	iface.Stack.SetRouteTable(rt)
 
 	return
+}
+
+func (iface *Interface) configureProtocol(p tcpip.NetworkProtocolNumber, cfg *IPConfig) ([]tcpip.Route, error) {
+	protocolAddr := tcpip.ProtocolAddress{
+		Protocol:          p,
+		AddressWithPrefix: cfg.Address,
+	}
+	if err := iface.Stack.AddProtocolAddress(iface.NICID, protocolAddr, stack.AddressProperties{}); err != nil {
+		return nil, fmt.Errorf("%v", err)
+	}
+	rt := []tcpip.Route{
+		tcpip.Route{Destination: protocolAddr.AddressWithPrefix.Subnet(),
+			NIC: iface.NICID,
+		},
+	}
+
+	if !cfg.Gateway.Unspecified() {
+		dst, ok := map[tcpip.NetworkProtocolNumber]tcpip.Subnet{
+			ipv4.ProtocolNumber: header.IPv4EmptySubnet,
+			ipv6.ProtocolNumber: header.IPv6EmptySubnet,
+		}[p]
+		if ok {
+			rt = append(rt, tcpip.Route{
+				Destination: dst,
+				Gateway:     cfg.Gateway,
+				NIC:         iface.NICID,
+			})
+		}
+	}
+	return rt, nil
 }
 
 // EnableICMP adds an ICMP endpoint to the interface, it is useful to enable
@@ -217,34 +245,54 @@ func fullAddr(a string) (tcpip.FullAddress, error) {
 
 // Init initializes an Ethernet interface.
 func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string, id int) (iface *Interface, err error) {
-	address, err := net.ParseMAC(mac)
-
+	address, err := tcpip.ParseMACAddress(mac)
 	if err != nil {
 		return
 	}
 
-	iface = &Interface{
-		NICID: tcpip.NICID(id),
+	return InitWithOptions(nic, tcpip.NICID(id), Options{
+		MAC: address,
+		IPv4: &IPConfig{
+			Address: tcpip.AddressWithPrefix{
+				Address:   tcpip.AddrFromSlice(net.ParseIP(ip).To4()),
+				PrefixLen: tcpip.MaskFromBytes(net.ParseIP(netmask).To4()).Prefix(),
+			},
+			Gateway: tcpip.AddrFromSlice(net.ParseIP(gateway)).To4(),
+		},
+	})
+}
+
+type IPConfig struct {
+	Address           tcpip.AddressWithPrefix
+	Gateway           tcpip.Address
+	AddressProperties stack.AddressProperties
+}
+type Options struct {
+	MAC          tcpip.LinkAddress
+	StackOptions *stack.Options
+	IPv4         *IPConfig
+	IPv6         *IPConfig
+}
+
+func InitWithOptions(nic *enet.ENET, id tcpip.NICID, opts Options) (*Interface, error) {
+	if opts.StackOptions == nil {
+		opts.StackOptions = DefaultStackOptions
 	}
 
-	ipAddr := tcpip.AddressWithPrefix{
-		Address:   tcpip.AddrFromSlice(net.ParseIP(ip).To4()),
-		PrefixLen: tcpip.MaskFromBytes(net.ParseIP(netmask).To4()).Prefix(),
+	iface := &Interface{
+		NICID:  id,
+		protos: make(map[int]tcpip.NetworkProtocolNumber),
 	}
 
-	gwAddr := tcpip.AddrFromSlice(net.ParseIP(gateway)).To4()
-
-	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
-		return
+	if err := iface.configure(opts); err != nil {
+		return nil, err
 	}
 
 	iface.NIC = &NIC{
-		MAC:    address,
+		MAC:    net.HardwareAddr(opts.MAC),
 		Link:   iface.Link,
 		Device: nic,
 	}
 
-	err = iface.NIC.Init()
-
-	return
+	return iface, iface.NIC.Init()
 }

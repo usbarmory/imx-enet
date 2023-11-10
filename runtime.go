@@ -16,8 +16,6 @@ import (
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 )
 
 // Socket can be used as net.SocketFunc under GOOS=tamago to allow its use
@@ -39,12 +37,8 @@ func (iface *Interface) Socket(ctx context.Context, network string, family, soty
 		}
 	}
 
-	switch family {
-	case syscall.AF_INET:
-		proto = ipv4.ProtocolNumber
-	case syscall.AF_INET6:
-		proto = ipv6.ProtocolNumber
-	default:
+	proto, ok := iface.protos[family]
+	if !ok {
 		return nil, errors.New("unsupported address family")
 	}
 
