@@ -42,7 +42,7 @@ var MTU uint32 = enet.MTU
 
 // Interface represents an Ethernet interface instance.
 type Interface struct {
-	nicid tcpip.NICID
+	NICID tcpip.NICID
 	NIC   *NIC
 
 	Stack *stack.Stack
@@ -70,7 +70,7 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 	linkEP := stack.LinkEndpoint(iface.Link)
 	iface.Link.LinkEPCapabilities |= stack.CapabilityResolutionRequired
 
-	if err := iface.Stack.CreateNIC(iface.nicid, linkEP); err != nil {
+	if err := iface.Stack.CreateNIC(iface.NICID, linkEP); err != nil {
 		return fmt.Errorf("%v", err)
 	}
 
@@ -79,7 +79,7 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 		AddressWithPrefix: ip,
 	}
 
-	if err := iface.Stack.AddProtocolAddress(iface.nicid, protocolAddr, stack.AddressProperties{}); err != nil {
+	if err := iface.Stack.AddProtocolAddress(iface.NICID, protocolAddr, stack.AddressProperties{}); err != nil {
 		return fmt.Errorf("%v", err)
 	}
 
@@ -87,13 +87,13 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 
 	rt = append(rt, tcpip.Route{
 		Destination: protocolAddr.AddressWithPrefix.Subnet(),
-		NIC:         iface.nicid,
+		NIC:         iface.NICID,
 	})
 
 	rt = append(rt, tcpip.Route{
 		Destination: header.IPv4EmptySubnet,
 		Gateway:     gw,
-		NIC:         iface.nicid,
+		NIC:         iface.NICID,
 	})
 
 	iface.Stack.SetRouteTable(rt)
@@ -112,13 +112,13 @@ func (iface *Interface) EnableICMP() error {
 		return fmt.Errorf("endpoint error (icmp): %v", err)
 	}
 
-	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.NICID, ipv4.ProtocolNumber)
 
 	if tcpErr != nil {
 		return fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: 0, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: 0, NIC: iface.NICID}
 
 	if err := ep.Bind(fullAddr); err != nil {
 		return fmt.Errorf("bind error (icmp endpoint): ", err)
@@ -130,13 +130,13 @@ func (iface *Interface) EnableICMP() error {
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
 // connections for the argument port.
 func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
-	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.NICID, ipv4.ProtocolNumber)
 
 	if tcpErr != nil {
 		return nil, fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.NICID}
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
@@ -224,7 +224,7 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	}
 
 	iface = &Interface{
-		nicid: tcpip.NICID(id),
+		NICID: tcpip.NICID(id),
 	}
 
 	ipAddr := tcpip.AddressWithPrefix{
