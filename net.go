@@ -65,10 +65,6 @@ var DefaultStackOptions = &stack.Options{
 
 func (iface *Interface) configure(opts Options) (err error) {
 	iface.Stack = stack.New(*opts.StackOptions)
-	/*
-
-		})
-	*/
 	iface.Link = channel.New(256, MTU, opts.MAC)
 	linkEP := stack.LinkEndpoint(iface.Link)
 	iface.Link.LinkEPCapabilities |= stack.CapabilityResolutionRequired
@@ -262,18 +258,28 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 	})
 }
 
+// IPConfig holds IP config information.
 type IPConfig struct {
-	Address           tcpip.AddressWithPrefix
-	Gateway           tcpip.Address
-	AddressProperties stack.AddressProperties
-}
-type Options struct {
-	MAC          tcpip.LinkAddress
-	StackOptions *stack.Options
-	IPv4         *IPConfig
-	IPv6         *IPConfig
+	Address tcpip.AddressWithPrefix
+	Gateway tcpip.Address
 }
 
+// Options contains parameters for configuring the network.
+type Options struct {
+	// MAC is the link layer address to set on the stack.
+	MAC tcpip.LinkAddress
+	// StackOptions can optionally be used to pass in custom options when
+	// creating the stack. If unset, a default IPv4-only stack will be created.
+	StackOptions *stack.Options
+	// IPv4 contains configuration for the IPv4 protocol.
+	IPv4 *IPConfig
+	// IPv6 contains configuration for the IPv6 protocol.
+	IPv6 *IPConfig
+}
+
+// InitWithOptions creates a new Interface with the provided options.
+// This method allows for more control over the configuration of the TCP/IP stack which is
+// created.
 func InitWithOptions(nic *enet.ENET, id tcpip.NICID, opts Options) (*Interface, error) {
 	if opts.StackOptions == nil {
 		opts.StackOptions = DefaultStackOptions
