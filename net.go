@@ -49,16 +49,18 @@ type Interface struct {
 	Link  *channel.Endpoint
 }
 
-func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address) (err error) {
-	iface.Stack = stack.New(stack.Options{
-		NetworkProtocols: []stack.NetworkProtocolFactory{
-			ipv4.NewProtocol,
-			arp.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{
-			tcp.NewProtocol,
-			icmp.NewProtocol4,
-			udp.NewProtocol},
-	})
+func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address, s *stack.Stack) (err error) {
+	if s == nil {
+		s = stack.New(stack.Options{
+			NetworkProtocols: []stack.NetworkProtocolFactory{
+				ipv4.NewProtocol,
+				arp.NewProtocol},
+			TransportProtocols: []stack.TransportProtocolFactory{
+				tcp.NewProtocol,
+				icmp.NewProtocol4,
+				udp.NewProtocol},
+		})
+	}
 
 	linkAddr, err := tcpip.ParseMACAddress(mac)
 
@@ -66,9 +68,11 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 		return
 	}
 
+	iface.Stack = s
 	iface.Link = channel.New(256, MTU, linkAddr)
-	linkEP := stack.LinkEndpoint(iface.Link)
 	iface.Link.LinkEPCapabilities |= stack.CapabilityResolutionRequired
+
+	linkEP := stack.LinkEndpoint(iface.Link)
 
 	if err := iface.Stack.CreateNIC(iface.nicid, linkEP); err != nil {
 		return fmt.Errorf("%v", err)
@@ -215,8 +219,10 @@ func fullAddr(a string) (tcpip.FullAddress, error) {
 	return tcpip.FullAddress{Addr: tcpip.AddrFromSlice(addr.To4()), Port: uint16(p)}, nil
 }
 
-// Init initializes an Ethernet interface.
-func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string, id int) (iface *Interface, err error) {
+// Init initializes an ENET Ethernet interface associating it to a gVisor link,
+// the link is assigned to a new or existing TCP/IP gVisor stack depending on
+// the stack argument.
+func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string, id int, stack *stack.Stack) (iface *Interface, err error) {
 	address, err := net.ParseMAC(mac)
 
 	if err != nil {
@@ -234,7 +240,7 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 
 	gwAddr := tcpip.AddrFromSlice(net.ParseIP(gateway)).To4()
 
-	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
+	if err = iface.configure(mac, ipAddr, gwAddr, stack); err != nil {
 		return
 	}
 
