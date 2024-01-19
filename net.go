@@ -37,29 +37,37 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-// MTU represents the Ethernet Maximum Transmission Unit.
-var MTU uint32 = enet.MTU
+var (
+	// MTU represents the Ethernet Maximum Transmission Unit.
+	MTU uint32 = enet.MTU
+
+	// NICID represents the default gVisor NIC identifier
+	NICID = tcpip.NICID(1)
+
+	// DefaultStackOptions represents the default gVisor Stack configuration
+	DefaultStackOptions = stack.Options{
+		NetworkProtocols: []stack.NetworkProtocolFactory{
+			ipv4.NewProtocol,
+			arp.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{
+			tcp.NewProtocol,
+			icmp.NewProtocol4,
+			udp.NewProtocol},
+	}
+)
 
 // Interface represents an Ethernet interface instance.
 type Interface struct {
-	nicid tcpip.NICID
+	NICID tcpip.NICID
 	NIC   *NIC
 
 	Stack *stack.Stack
 	Link  *channel.Endpoint
 }
 
-func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address, s *stack.Stack) (err error) {
-	if s == nil {
-		s = stack.New(stack.Options{
-			NetworkProtocols: []stack.NetworkProtocolFactory{
-				ipv4.NewProtocol,
-				arp.NewProtocol},
-			TransportProtocols: []stack.TransportProtocolFactory{
-				tcp.NewProtocol,
-				icmp.NewProtocol4,
-				udp.NewProtocol},
-		})
+func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcpip.Address) (err error) {
+	if iface.Stack == nil {
+		iface.Stack = stack.New(DefaultStackOptions)
 	}
 
 	linkAddr, err := tcpip.ParseMACAddress(mac)
@@ -68,13 +76,12 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 		return
 	}
 
-	iface.Stack = s
 	iface.Link = channel.New(256, MTU, linkAddr)
 	iface.Link.LinkEPCapabilities |= stack.CapabilityResolutionRequired
 
 	linkEP := stack.LinkEndpoint(iface.Link)
 
-	if err := iface.Stack.CreateNIC(iface.nicid, linkEP); err != nil {
+	if err := iface.Stack.CreateNIC(iface.NICID, linkEP); err != nil {
 		return fmt.Errorf("%v", err)
 	}
 
@@ -83,7 +90,7 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 		AddressWithPrefix: ip,
 	}
 
-	if err := iface.Stack.AddProtocolAddress(iface.nicid, protocolAddr, stack.AddressProperties{}); err != nil {
+	if err := iface.Stack.AddProtocolAddress(iface.NICID, protocolAddr, stack.AddressProperties{}); err != nil {
 		return fmt.Errorf("%v", err)
 	}
 
@@ -91,13 +98,13 @@ func (iface *Interface) configure(mac string, ip tcpip.AddressWithPrefix, gw tcp
 
 	rt = append(rt, tcpip.Route{
 		Destination: protocolAddr.AddressWithPrefix.Subnet(),
-		NIC:         iface.nicid,
+		NIC:         iface.NICID,
 	})
 
 	rt = append(rt, tcpip.Route{
 		Destination: header.IPv4EmptySubnet,
 		Gateway:     gw,
-		NIC:         iface.nicid,
+		NIC:         iface.NICID,
 	})
 
 	iface.Stack.SetRouteTable(rt)
@@ -116,13 +123,13 @@ func (iface *Interface) EnableICMP() error {
 		return fmt.Errorf("endpoint error (icmp): %v", err)
 	}
 
-	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.NICID, ipv4.ProtocolNumber)
 
 	if tcpErr != nil {
 		return fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: 0, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: 0, NIC: iface.NICID}
 
 	if err := ep.Bind(fullAddr); err != nil {
 		return fmt.Errorf("bind error (icmp endpoint): ", err)
@@ -134,13 +141,13 @@ func (iface *Interface) EnableICMP() error {
 // ListenerTCP4 returns a net.Listener capable of accepting IPv4 TCP
 // connections for the argument port.
 func (iface *Interface) ListenerTCP4(port uint16) (net.Listener, error) {
-	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.nicid, ipv4.ProtocolNumber)
+	addr, tcpErr := iface.Stack.GetMainNICAddress(iface.NICID, ipv4.ProtocolNumber)
 
 	if tcpErr != nil {
 		return nil, fmt.Errorf("couldn't get NIC IP address: %v", tcpErr)
 	}
 
-	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.nicid}
+	fullAddr := tcpip.FullAddress{Addr: addr.Address, Port: port, NIC: iface.NICID}
 	listener, err := gonet.ListenTCP(iface.Stack, fullAddr, ipv4.ProtocolNumber)
 
 	if err != nil {
@@ -220,17 +227,16 @@ func fullAddr(a string) (tcpip.FullAddress, error) {
 }
 
 // Init initializes an ENET Ethernet interface associating it to a gVisor link,
-// the link is assigned to a new or existing TCP/IP gVisor stack depending on
-// the stack argument.
-func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string, id int, stack *stack.Stack) (iface *Interface, err error) {
+// a default NICID and TCP/IP gVisor Stack are set if not previously assigned.
+func (iface *Interface) Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string) (err error) {
 	address, err := net.ParseMAC(mac)
 
 	if err != nil {
 		return
 	}
 
-	iface = &Interface{
-		nicid: tcpip.NICID(id),
+	if iface.NICID == 0 {
+		iface.NICID = NICID
 	}
 
 	ipAddr := tcpip.AddressWithPrefix{
@@ -240,17 +246,19 @@ func Init(nic *enet.ENET, ip string, netmask string, mac string, gateway string,
 
 	gwAddr := tcpip.AddrFromSlice(net.ParseIP(gateway)).To4()
 
-	if err = iface.configure(mac, ipAddr, gwAddr, stack); err != nil {
+	if err = iface.configure(mac, ipAddr, gwAddr); err != nil {
 		return
 	}
 
-	iface.NIC = &NIC{
-		MAC:    address,
-		Link:   iface.Link,
-		Device: nic,
-	}
+	if iface.NIC == nil {
+		iface.NIC = &NIC{
+			MAC:    address,
+			Link:   iface.Link,
+			Device: nic,
+		}
 
-	err = iface.NIC.Init()
+		err = iface.NIC.Init()
+	}
 
 	return
 }
