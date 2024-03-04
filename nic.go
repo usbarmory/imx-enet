@@ -91,7 +91,7 @@ func (eth *NIC) Rx(buf []byte) {
 
 // Tx transmits a single Ethernet frame to the virtual Ethernet instance.
 func (eth *NIC) Tx() (buf []byte) {
-	var pkt stack.PacketBufferPtr
+	var pkt *stack.PacketBuffer
 
 	if pkt = eth.Link.Read(); pkt.IsNil() {
 		return
