@@ -93,7 +93,7 @@ func (eth *NIC) Rx(buf []byte) {
 func (eth *NIC) Tx() (buf []byte) {
 	var pkt *stack.PacketBuffer
 
-	if pkt = eth.Link.Read(); pkt.IsNil() {
+	if pkt = eth.Link.Read(); pkt == nil {
 		return
 	}
 
