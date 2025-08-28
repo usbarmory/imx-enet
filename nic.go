@@ -1,6 +1,6 @@
 // i.MX Ethernet (ENET) driver
 //
-// Copyright (c) WithSecure Corporation
+// Copyright (c) The imx-enet authors. All Rights Reserved.
 //
 // Use of this source code is governed by the license
 // that can be found in the LICENSE file.
