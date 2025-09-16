@@ -13,7 +13,13 @@ The interface TCP/IP stack can be attached to the Go runtime by setting
 `net.SocketFunc` to the interface `Socket` function:
 
 ```
-iface, _ := imxenet.Init(usbarmory.ENET2, "10.0.0.1", "255.255.255.0", "1a:55:89:a2:69:41", "10.0.0.2")
+// i.MX ENET interface
+iface := imxenet.Interface{}
+
+// initialize IP, Netmask, MAC, Gateway
+_ = imxenet.Init(usbarmory.ENET2, "10.0.0.1", "255.255.255.0", "1a:55:89:a2:69:41", "10.0.0.2")
+
+// Go runtime hook
 net.SocketFunc = iface.Socket
 ```
 
