@@ -6,7 +6,7 @@
 // that can be found in the LICENSE file.
 
 // Package enet implements TCP/IP connectivity through Ethernet (ENET)
-// controllers on i.MX6 SoCs.
+// controllers on i.MX SoCs.
 //
 // The TCP/IP stack is implemented using gVisor pure Go implementation.
 //

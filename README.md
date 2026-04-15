@@ -1,3 +1,8 @@
+> [!WARNING]
+> This package is now obsolete as it is replaced by
+> [go-net](https://github.com/usbarmory/go-net) bridging
+> [enet](https://github.com/usbarmory/tamago/tree/master/soc/nxp/enet) directly.
+
 i.MX Ethernet driver
 ====================
 
